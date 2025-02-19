@@ -1,0 +1,63 @@
+---
+title: "NEEA Energy Analysis"
+author: "Wylie Hampson"
+date: '2025-02-19'
+output: html_document
+---
+
+Case Objective:
+Please prepare a case analysis in order to answer the questions below.
+This should include documentation of your work in this file as well as a presentation that discusses your approach, logic and recommendations to management.
+This case is designed to not require more than 2 hours of your time to successfully complete.  We are not looking for a single right answer, but for insights into how you approach analysis and present your insights.
+
+Situation:
+Washington State has an Energy Savings goal of being 70% below the 2006 Code average. NEEA's Codes and Standards team is developing a strategy to support this goal and is seeking to understand which scenario(s) the organization should try to influence the market towards.
+The questions stated below are to help assess this program potential.
+Disclaimer:  data provided within this file are fictitious 
+
+Read in packages:
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+Read in data:
+```{r}
+# I want to separate the data into separate tables to help with organization
+base_table <- readxl::read_xlsx("data/market_data.xlsx", range = "B5:C14", sheet = "Energy Use") %>% dplyr::rename(year = Code) %>% 
+  janitor::clean_names()
+
+# Add correct years to base table to replace NA values
+base_table[2:4,1] <- 2006
+base_table[6:9, 1] <- 2021
+
+# Read in each table and attach them to the base table and clean them up.
+energy_use_electric <- readxl::read_xlsx("data/market_data.xlsx", range = "D5:J14", sheet = "Energy Use") %>% 
+  janitor::clean_names() %>% 
+  dplyr::bind_cols(base_table) %>% 
+  dplyr::select(year, base_heating_system, everything())
+
+energy_use_gas <- readxl::read_xlsx("data/market_data.xlsx", range = "K5:M14", sheet = "Energy Use") %>% 
+  janitor::clean_names() %>% 
+  dplyr::bind_cols(base_table) %>% 
+  dplyr::select(year, base_heating_system, everything())
+
+energy_use_electric_and_gas <- readxl::read_xlsx("data/market_data.xlsx", range = "N5:T14", sheet = "Energy Use") %>% 
+  janitor::clean_names() %>% 
+  dplyr::bind_cols(base_table) %>% 
+  dplyr::select(year, base_heating_system, everything())
+
+weights <- readxl::read_xlsx("data/market_data.xlsx", range = "B3:D9", sheet = "Weights") %>% dplyr::slice(-1) %>% 
+  tidyr::pivot_longer(cols = c(2,3), names_to = "year", values_to = "value") %>% 
+  janitor::clean_names() %>% 
+  dplyr::arrange(year)
+```
+
+Q1: Using the data provided in this file, please estimate how close the state is to achieving the stated goal.
+
+```{r}
+
+```
+
+
