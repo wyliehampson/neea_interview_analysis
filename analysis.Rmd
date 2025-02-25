@@ -15,13 +15,15 @@ Washington State has an Energy Savings goal of being 70% below the 2006 Code ave
 The questions stated below are to help assess this program potential.
 Disclaimer:  data provided within this file are fictitious 
 
-```{r setup, include=FALSE}
+```{r setup, include=TRUE}
 knitr::opts_chunk$set(echo = TRUE)
 
+# Load in packages
 library(tidyverse)
+library(ggplot2)
 ```
 
-```{r, include=FALSE}
+```{r}
 # I want to separate the data into separate tables to help with organization
 base_table <- readxl::read_xlsx("data/market_data.xlsx", range = "B5:C14", sheet = "Energy Use") %>% dplyr::rename(year = Code) %>% 
   janitor::clean_names()
@@ -63,9 +65,7 @@ weights <- readxl::read_xlsx("data/market_data.xlsx", range = "B3:D9", sheet = "
                 base_heating_system = `HVAC System`) %>% 
   dplyr::mutate(weights_2006 = as.numeric(weights_2006),
                 weights_2021 = as.numeric(weights_2021))
-  # tidyr::pivot_longer(cols = c(2,3), names_to = "year", values_to = "value") %>% 
-  # janitor::clean_names() %>% 
-  # dplyr::arrange(year)
+
 ```
 
 Q1: Using the data provided in this file, please estimate how close the state is to achieving the stated goal.
@@ -81,22 +81,16 @@ weights <- bind_rows(weights, new_row)
 total_energy_savings_no_gas_backup_heat_pump <- total_energy_savings_no_gas_backup_heat_pump %>%
   dplyr::select(base_heating_system, all_2006, all_2021) %>% 
   dplyr::left_join(weights, by = "base_heating_system") %>% 
-  dplyr::mutate(weighted_savings_2006 = all_2006 * weights_2006,
-                weighted_savings_2021 = all_2021 * weights_2021)
+  dplyr::mutate(weighted_use_2006 = all_2006 * weights_2006,
+                weighted_use_2021 = all_2021 * weights_2021)
 
 total_energy_savings_no_gas_backup_heat_pump <- total_energy_savings_no_gas_backup_heat_pump %>% 
   dplyr::bind_rows(summarise(total_energy_savings_no_gas_backup_heat_pump, 
                              base_heating_system = "All Systems", 
                              across(-base_heating_system, sum))) %>% 
   dplyr::mutate(energy_saving_percent = ((all_2006 - all_2021) / all_2006) * 100,
-                energy_saving_percent_weighted = ((weighted_savings_2006 - weighted_savings_2021) / weighted_savings_2006) * 100)
+                energy_saving_percent_weighted = ((weighted_use_2006 - weighted_use_2021) / weighted_use_2006) * 100)
 
-
-# total_energy_savings_no_gas_backup_heat_pump <- total_energy_savings %>% 
-#   dplyr::filter(base_heating_system != "Gas with Heat Pump Back Up")
-
-# total_energy_savings_no_gas_backup_heat_pump <- total_energy_savings_no_gas_backup_heat_pump %>% 
-#   dplyr::bind_rows(summarise(total_energy_savings_no_gas_backup_heat_pump, base_heating_system = "All Systems", across(-base_heating_system, sum)))
 ```
 
 Q2: Based on that analysis and trends, please identify a scenario you would recommend for the state to meet this goal. What would you present to management for consideration?
@@ -111,11 +105,185 @@ calculate_total_weighted_saving_percent <- function(gas_furnace = 40196.08,
                                                     gas_furnace_weight = 0.08,
                                                     gas_furnace_w_ac_weight = 0.04,
                                                     heat_pump_elec_weight = 0.81,
-                                                    zonal_elec_weight= 0.07,
+                                                    zonal_elec_weight = 0.07,
                                                     gas_w_pump_backup_weight = 0) {
   
+  weight_total <- sum(gas_furnace_weight, gas_furnace_w_ac_weight, heat_pump_elec_weight, zonal_elec_weight, gas_w_pump_backup_weight)
   
+  gas_furnace_2006 <- 91888.65
+  gas_furnace_w_ac_2006 <- 94875.08
+  heat_pump_elec_2006 <- 51852.46
+  zonal_elec_2006 <- 61442.60
+  gas_furnace_weight_2006 <- 0.55
+  gas_furnace_w_ac_weight_2006 <- 0.28
+  heat_pump_elec_weight_2006 <- 0.13
+  zonal_elec_weight_2006 <- 0.04
+  
+  total_energy_use_weighted <- sum((gas_furnace * gas_furnace_weight), 
+                                   (gas_furnace_w_ac * gas_furnace_w_ac_weight),
+                                   (heat_pump_elec * heat_pump_elec_weight), 
+                                   (zonal_elec * zonal_elec_weight),
+                                   (gas_w_pump_backup * gas_w_pump_backup_weight))
+  
+  total_energy_use_weighted_2006 <- sum((gas_furnace_2006 * gas_furnace_weight_2006),
+                                        (gas_furnace_w_ac_2006 * gas_furnace_w_ac_weight_2006),
+                                        (heat_pump_elec_2006 * heat_pump_elec_weight_2006),
+                                        (zonal_elec_2006 * zonal_elec_weight_2006))
+  
+  weighted_saving_percent <- ((total_energy_use_weighted_2006 - total_energy_use_weighted) / total_energy_use_weighted_2006) * 100
+  
+  return(weighted_saving_percent)
   
 }
 
 ```
+
+
+```{r}
+plot_data <- total_energy_savings_no_gas_backup_heat_pump %>% 
+  dplyr::select(base_heating_system, energy_saving_percent, energy_saving_percent_weighted) %>% 
+  dplyr::filter(base_heating_system != "All Systems") %>% 
+  tidyr::pivot_longer(cols = c(energy_saving_percent, energy_saving_percent_weighted),
+                      names_to = "Weighted?",
+                      values_to = "percentage") %>% 
+  dplyr::mutate(base_heating_system = dplyr::recode(base_heating_system, "Energy Saving Percent" = "percent", "Energy Saving Percent (Weighted)" = "percent_weighted"))
+
+energy_savings_plot <- ggplot2::ggplot(plot_data, aes(x = base_heating_system, y = percentage, fill = `Weighted?`)) +
+  ggplot2::geom_bar(stat = "identity", position = "dodge") +
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5, size = 5) +
+  labs(title = "Base Heating System Efficiency Change (Weighted vs. Not Weighted)", 
+       y = "Percentage Change from 2006 to 2021 (%)", 
+       x = "Base Heating System") +
+  scale_fill_manual(values = c("#1f77b4", "#ff7f0e"),
+                    labels = c("Energy Saving Percent", "Energy Saving Percent Weighted")) +
+  theme_minimal(base_size = 14)
+
+energy_savings_plot
+
+```
+
+```{r}
+plot_data_pie <- weights %>% 
+  dplyr::filter(base_heating_system %in% c("Gas Furnace", 
+                                           "Gas Furnance with Air Conditioning", 
+                                           "Air Source Heat Pump (Electric)",
+                                           "Zonal Electric")) %>% 
+  pivot_longer(cols = c(weights_2006, weights_2021), 
+               names_to = "Year", 
+               values_to = "Percentage") %>%
+  mutate(base_heating_system = recode(base_heating_system, 
+                        "Weights 2006" = "weights_2006", 
+                        "Weights 2021" = "weights_2021"),
+         Year = ifelse(Year == "weights_2006", 2006, 2021))
+
+weights_pie_charts <- ggplot(plot_data_pie, aes(x = "", y = Percentage, fill = base_heating_system)) +
+  geom_bar(stat = "identity", width = 1) +  # Create stacked bar for pie chart
+  coord_polar(theta = "y") +  # Convert to pie chart
+  facet_wrap(~ Year) +  # Side-by-side pies
+  labs(title = "Base Heating System Weights (2006 vs. 2021)", x = NULL, y = NULL,
+       fill = "Base Heating System") +
+  scale_fill_manual(values = c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728")) +  # Custom colors
+  theme_minimal(base_size = 14) +
+  theme(axis.text = element_blank(),  # Hide axis text
+        axis.ticks = element_blank(),  # Hide axis ticks
+        panel.grid = element_blank(),  # Remove grid
+        strip.text = element_text(size = 14, face = "bold"))  # Style facet labels
+
+weights_pie_charts
+
+```
+
+```{r}
+
+avg_energy_use_rate_data <- data.frame(
+  year = c(2006, 2021),
+  avg_energy_use = c(86302.43, 36186.43)
+)
+
+years <- seq(2006, 2021, by = 1)  # Sequence from 2006 to 2021
+avg_energy_use <- seq(86302.43, 36186.43, length.out = length(years))
+
+line_data_2006_2021 <- data.frame(year = years, avg_energy_use = avg_energy_use)
+
+slope <- (36186.43 - 86302.43) / (2021 - 2006)  # Calculate the slope
+intercept <- 86302.43 - slope * 2006  # Calculate the intercept
+
+years_2022_2030 <- 2022:2030
+avg_energy_use_2022_2030 <- slope * years_2022_2030 + intercept
+
+line_data_2022_2030 <- data.frame(year = years_2022_2030, avg_energy_use = avg_energy_use_2022_2030)
+
+# Combine both data frames (2006-2021 and 2022-2030)
+line_data <- rbind(line_data_2006_2021, line_data_2022_2030)
+
+# Find the year where Energy_Use is 25890.73
+target_value <- 25890.73
+intersect_year <- line_data %>% 
+  filter(avg_energy_use <= target_value) %>%
+  slice(which.min(abs(avg_energy_use - target_value))) %>%
+  pull(year)
+
+
+rate_plot <- ggplot(line_data, aes(x = year, y = avg_energy_use)) +
+  geom_line(color = "blue", size = 1) +  # Line through both points
+  geom_point(data = avg_energy_use_rate_data, aes(x = year, y = avg_energy_use), color = "red", size = 2) +  # Points for 2006 and 2021
+  geom_text(data = avg_energy_use_rate_data, aes(label = c("2006", "2021")), hjust = -0.5) +
+  geom_hline(yintercept = 25890.73, linetype = "dashed", color = "black") +  # Dotted vertical line
+  annotate("text", x = 2006, y = 25890.73, label = "70% Below 2006 Code Average (25,891 kBtu/Home)", 
+           color = "black", size = 4, hjust = -0.1, vjust = -0.5) +
+  labs(title = "Average Home Energy Use Over Time",
+       x = "Year", y = "Energy Use (kBtu/Home)") +
+  theme_minimal(base_size = 14)
+
+rate_plot
+
+```
+
+```{r}
+
+adjusted_avg_energy_use_data <- data.frame(
+  base_heating_system = c("Actual Value",
+                          "Gas Furnace", 
+                          "Gas Furnance with Air Conditioning", 
+                          "Air Source Heat Pump (Electric)",
+                          "Zonal Electric",
+                          "Gas with Heat Pump Back Up"),
+  energy_savings_percent = c(calculate_total_weighted_saving_percent(),
+                             calculate_total_weighted_saving_percent(gas_furnace = (40196.08 * 0.65)),
+                             calculate_total_weighted_saving_percent(gas_furnace_w_ac = (41558.87 * 0.65)),
+                             calculate_total_weighted_saving_percent(heat_pump_elec = (35619.49 * 0.65)),
+                             calculate_total_weighted_saving_percent(zonal_elec = (35099.94 * 0.65)),
+                             calculate_total_weighted_saving_percent(gas_w_pump_backup = (34272.75 * 0.65)))
+)
+
+adjusted_avg_energy_use_data$color <- ifelse(adjusted_avg_energy_use_data$base_heating_system == "Actual Value", "Highlighted", "Default")
+
+adjusted_avg_energy_use_data$base_heating_system <- factor(adjusted_avg_energy_use_data$base_heating_system, 
+                                                           levels = c("Actual Value",
+                                                                      "Gas Furnace", 
+                                                                      "Gas Furnance with Air Conditioning", 
+                                                                      "Air Source Heat Pump (Electric)",
+                                                                      "Zonal Electric",
+                                                                      "Gas with Heat Pump Back Up"))
+
+adjusted_avg_energy_use_data$base_heating_system <- str_wrap(adjusted_avg_energy_use_data$base_heating_system, width = 10)
+
+system_impact_plot <- ggplot2::ggplot(adjusted_avg_energy_use_data, aes(x = base_heating_system, y = energy_savings_percent, fill = color)) +
+  ggplot2::geom_bar(stat = "identity", position = "dodge", width = 0.3) +
+  geom_text(aes(label = paste0(round(energy_savings_percent, 1), "%")), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5, size = 5) +
+  labs(title = "Energy Savings Percent from 2006 Code Average by Improving Each System by 35% Efficiency", 
+       y = "Energy Savings Percent from 2006 Code Average (%)", 
+       x = "Base Heating System") +
+  scale_fill_manual(values = c("Default" = "steelblue", "Highlighted" = "red")) +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none")
+
+system_impact_plot
+
+```
+
+
