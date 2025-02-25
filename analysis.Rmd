@@ -154,16 +154,18 @@ plot_data <- total_energy_savings_no_gas_backup_heat_pump %>%
                       values_to = "percentage") %>% 
   dplyr::mutate(base_heating_system = dplyr::recode(base_heating_system, "Energy Saving Percent" = "percent", "Energy Saving Percent (Weighted)" = "percent_weighted"))
 
+plot_data$base_heating_system <- str_wrap(plot_data$base_heating_system, width = 10)
+
 energy_savings_plot <- ggplot2::ggplot(plot_data, aes(x = base_heating_system, y = percentage, fill = `Weighted?`)) +
   ggplot2::geom_bar(stat = "identity", position = "dodge") +
   geom_text(aes(label = paste0(round(percentage, 1), "%")), 
             position = position_dodge(width = 0.8), 
-            vjust = -0.5, size = 5) +
+            vjust = -0.5, size = 4) +
   labs(title = "Base Heating System Efficiency Change (Weighted vs. Not Weighted)", 
        y = "Percentage Change from 2006 to 2021 (%)", 
        x = "Base Heating System") +
   scale_fill_manual(values = c("#1f77b4", "#ff7f0e"),
-                    labels = c("Energy Saving Percent", "Energy Saving Percent Weighted")) +
+                    labels = c("Efficiency Changes (%)", "Weighted Energy Savings (%)")) +
   theme_minimal(base_size = 14)
 
 energy_savings_plot
