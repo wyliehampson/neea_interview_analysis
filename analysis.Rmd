@@ -59,6 +59,8 @@ energy_use_electric_and_gas <- readxl::read_xlsx("data/market_data.xlsx", range 
 energy_use_electric_and_gas <- energy_use_electric_and_gas %>% 
   tidyr::pivot_wider(names_from = year, values_from = energy_use_electric_and_gas %>% select(-year, -base_heating_system) %>% names(), names_sep = "_")
 
+energy_use_electric_and_gas
+
 weights <- readxl::read_xlsx("data/market_data.xlsx", range = "B3:D9", sheet = "Weights") %>% dplyr::slice(-1) %>% 
   dplyr::rename(weights_2006 = `2006`,
                 weights_2021 = `2021`,
@@ -66,6 +68,7 @@ weights <- readxl::read_xlsx("data/market_data.xlsx", range = "B3:D9", sheet = "
   dplyr::mutate(weights_2006 = as.numeric(weights_2006),
                 weights_2021 = as.numeric(weights_2021))
 
+weights
 ```
 
 Q1: Using the data provided in this file, please estimate how close the state is to achieving the stated goal.
@@ -90,6 +93,8 @@ total_energy_savings_no_gas_backup_heat_pump <- total_energy_savings_no_gas_back
                              across(-base_heating_system, sum))) %>% 
   dplyr::mutate(energy_saving_percent = ((all_2006 - all_2021) / all_2006) * 100,
                 energy_saving_percent_weighted = ((weighted_use_2006 - weighted_use_2021) / weighted_use_2006) * 100)
+
+total_energy_savings_no_gas_backup_heat_pump
 
 ```
 
@@ -136,6 +141,7 @@ calculate_total_weighted_saving_percent <- function(gas_furnace = 40196.08,
   
 }
 
+paste0("Washington State's energy savings percentage since the 2006 codes is ", calculate_total_weighted_saving_percent(), ".")
 ```
 
 
